@@ -1,5 +1,0 @@
-{
-  "name": "demo-project",
-  "version": "1.0.0",
-  "description": "Fixture project for CodeMap demo - has a deliberate hotspot (database.ts) and a deliberate circular dependency (auth -> user -> database -> auth)."
-}
