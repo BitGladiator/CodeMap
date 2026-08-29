@@ -5,6 +5,17 @@ export class DependencyGraph {
     this.dependents = new Map();
   }
 
+  static fromEntries(entries) {
+    const graph = new DependencyGraph();
+    for (const entry of entries) {
+      graph.addNode(entry.source);
+      for (const dep of entry.dependencies) {
+        graph.addDependency(entry.source, dep);
+      }
+    }
+    return graph;
+  }
+
   addNode(file) {
     this.nodes.add(file);
 
@@ -39,5 +50,28 @@ export class DependencyGraph {
 
   getNodes() {
     return [...this.nodes];
+  }
+
+  getNodeCount() {
+    return this.nodes.size;
+  }
+
+  getEdgeCount() {
+    let count = 0;
+    for (const deps of this.dependencies.values()) {
+      count += deps.size;
+    }
+    return count;
+  }
+
+  toJSON() {
+    const result = {};
+    for (const node of this.getNodes()) {
+      result[node] = {
+        dependencies: this.getDependencies(node),
+        dependents: this.getDependents(node),
+      };
+    }
+    return result;
   }
 }
