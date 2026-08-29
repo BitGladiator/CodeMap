@@ -1,0 +1,38 @@
+[
+  {
+    "source": "src/server.js",
+    "dependencies": ["src/database.js", "src/auth.js", "src/config.js", "src/routes/auth.js", "src/routes/users.js"]
+  },
+  {
+    "source": "src/auth.js",
+    "dependencies": ["src/database.js", "src/config.js", "src/utils.js"]
+  },
+  {
+    "source": "src/database.js",
+    "dependencies": ["src/config.js"]
+  },
+  {
+    "source": "src/user.js",
+    "dependencies": ["src/database.js", "src/utils.js"]
+  },
+  {
+    "source": "src/routes/auth.js",
+    "dependencies": ["src/auth.js", "src/database.js"]
+  },
+  {
+    "source": "src/routes/users.js",
+    "dependencies": ["src/user.js", "src/database.js"]
+  },
+  {
+    "source": "test/auth.test.js",
+    "dependencies": ["src/auth.js"]
+  },
+  {
+    "source": "src/config.js",
+    "dependencies": []
+  },
+  {
+    "source": "src/utils.js",
+    "dependencies": []
+  }
+]
