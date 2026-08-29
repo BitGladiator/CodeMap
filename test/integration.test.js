@@ -1,11 +1,3 @@
-/**
- * test/integration.test.js
- * Owner: Sneha
- *
- * Run: node test/integration.test.js
- * No third-party test framework used — plain node:assert.
- */
-
 const assert = require("assert");
 const { execSync } = require("child_process");
 const path = require("path");
@@ -22,17 +14,6 @@ function pass(name) {
   console.log(`PASS: ${name}`);
 }
 
-// ---------------------------------------------------------------
-// SETUP
-// ---------------------------------------------------------------
-
-/**
- * Strips out any "// change N" lines that a previous test run may have
- * appended to database.js, so every run starts from the same clean
- * baseline instead of the file growing forever. This fixes the test
- * pollution issue — run this suite 100 times, database.js stays the
- * same size.
- */
 function resetDatabaseFixture() {
   let content = fs.readFileSync(DB_FILE, "utf-8");
   content = content.replace(/\n?\/\/ change \d+\n?/g, "\n");
@@ -42,8 +23,6 @@ function resetDatabaseFixture() {
 
 function setupFixtureGitRepo() {
   const gitDir = path.join(FIXTURE, ".git");
-
-  // clean up any previous run so this is safe to re-run
   if (fs.existsSync(gitDir)) {
     fs.rmSync(gitDir, { recursive: true, force: true });
   }
@@ -56,7 +35,6 @@ function setupFixtureGitRepo() {
   execSync("git add .", { cwd: FIXTURE });
   execSync('git commit -q -m "init"', { cwd: FIXTURE });
 
-  // simulate database.js being changed a lot (it's the hotspot)
   for (let i = 0; i < 5; i++) {
     fs.appendFileSync(DB_FILE, `\n// change ${i}\n`);
     execSync("git add .", { cwd: FIXTURE });
@@ -64,12 +42,8 @@ function setupFixtureGitRepo() {
   }
 }
 
-// ---------------------------------------------------------------
-// CORE TESTS
-// ---------------------------------------------------------------
-
 function testAnalyzeChangesOnNonGitFolder() {
-  const result = analyzeChanges("/tmp"); // not a git repo (probably)
+  const result = analyzeChanges("/tmp");
   assert.strictEqual(typeof result.commitCount, "number");
   pass("non-git folder doesn't crash");
 }
@@ -83,7 +57,7 @@ function testAnalyzeChangesOnFixture() {
 
 function testHighImpactFiles() {
   const gitAnalysis = analyzeChanges(FIXTURE);
-  const fakeDependents = { "src/database.js": 4 }; // pretend Graph module says this
+  const fakeDependents = { "src/database.js": 4 };
   const result = findHighImpactFiles(gitAnalysis, fakeDependents, 1);
   assert.ok(result.length > 0, "expected at least one high impact file");
   pass("high impact file combination works");
@@ -105,7 +79,6 @@ function testZeroCommitRepo() {
   execSync("git init -q", { cwd: emptyRepo });
   execSync('git config user.email "test@test.com"', { cwd: emptyRepo });
   execSync('git config user.name "test"', { cwd: emptyRepo });
-  // deliberately no commits
 
   const result = analyzeChanges(emptyRepo);
   assert.strictEqual(result.commitCount, 0, "expected 0 commits on a fresh repo");
@@ -114,16 +87,6 @@ function testZeroCommitRepo() {
   fs.rmSync(emptyRepo, { recursive: true, force: true });
 }
 
-// ---------------------------------------------------------------
-// NEW EDGE CASE TESTS
-// ---------------------------------------------------------------
-
-/**
- * EDGE CASE: no more test pollution.
- * Run setup, count how many "// change N" markers are in the file —
- * should always be exactly 5 (the number this run adds), never more,
- * even if this test file has been run many times before.
- */
 function testNoFixturePollution() {
   const content = fs.readFileSync(DB_FILE, "utf-8");
   const matches = content.match(/\/\/ change \d+/g) || [];
@@ -131,12 +94,6 @@ function testNoFixturePollution() {
   pass("fixture file doesn't accumulate change markers across runs");
 }
 
-/**
- * EDGE CASE: git rename detection.
- * Renames a file mid-history and checks analyzeChanges reports the NEW
- * path cleanly — not a garbled "old\tnew" string (the bug that was fixed).
- * Runs in its own throwaway repo so it doesn't touch the shared fixture.
- */
 function testGitRenameDetection() {
   const tempRepo = path.join(__dirname, "fixtures", "temp-rename-test");
   if (fs.existsSync(tempRepo)) {
@@ -166,9 +123,6 @@ function testGitRenameDetection() {
   fs.rmSync(tempRepo, { recursive: true, force: true });
 }
 
-/**
- * EDGE CASE: defensive checks — null/undefined inputs should never crash.
- */
 function testDefensiveNullInputs() {
   assert.doesNotThrow(() => analyzeChanges(null), "analyzeChanges(null) should not throw");
   assert.doesNotThrow(() => analyzeChanges(undefined), "analyzeChanges(undefined) should not throw");
@@ -192,9 +146,6 @@ function testDefensiveNullInputs() {
   pass("null/undefined inputs are handled defensively without crashing");
 }
 
-/**
- * EDGE CASE: CLI output is a readable formatted report, not raw JSON.
- */
 function testFormattedReportOutput() {
   const analysis = analyzeChanges(FIXTURE);
   const report = formatReport(analysis);
@@ -207,10 +158,6 @@ function testFormattedReportOutput() {
   pass("CLI output is a human-readable formatted report");
 }
 
-/**
- * EDGE CASE: large commit history — make sure commitLimit is actually
- * respected and the function doesn't choke on a repo with many commits.
- */
 function testLargeCommitHistoryRespectsLimit() {
   const bigRepo = path.join(__dirname, "fixtures", "temp-large-history");
   if (fs.existsSync(bigRepo)) {
@@ -241,10 +188,6 @@ function testLargeCommitHistoryRespectsLimit() {
   fs.rmSync(bigRepo, { recursive: true, force: true });
 }
 
-/**
- * EDGE CASE: filenames with spaces and unicode characters shouldn't crash
- * the parser or get mangled.
- */
 function testSpecialCharacterFilenames() {
   const specialRepo = path.join(__dirname, "fixtures", "temp-special-chars");
   if (fs.existsSync(specialRepo)) {
@@ -278,10 +221,6 @@ function testSpecialCharacterFilenames() {
   fs.rmSync(specialRepo, { recursive: true, force: true });
 }
 
-/**
- * EDGE CASE: multiple renames happening in the SAME commit should all be
- * parsed correctly, not just the first one.
- */
 function testMultipleRenamesInSameCommit() {
   const multiRepo = path.join(__dirname, "fixtures", "temp-multi-rename");
   if (fs.existsSync(multiRepo)) {
@@ -314,11 +253,6 @@ function testMultipleRenamesInSameCommit() {
   fs.rmSync(multiRepo, { recursive: true, force: true });
 }
 
-/**
- * EDGE CASE: a file deleted and later re-created with the same name
- * should have its changes counted correctly (not lost or double-counted
- * incorrectly).
- */
 function testDeletedThenRecreatedFile() {
   const dcRepo = path.join(__dirname, "fixtures", "temp-delete-recreate");
   if (fs.existsSync(dcRepo)) {
@@ -357,9 +291,24 @@ function testDeletedThenRecreatedFile() {
   fs.rmSync(dcRepo, { recursive: true, force: true });
 }
 
-// ---------------------------------------------------------------
-// RUN ALL
-// ---------------------------------------------------------------
+function testDependentsLookupIgnoresPathFormat() {
+  const gitAnalysis = {
+    commitCount: 1,
+    filesChanged: 1,
+    added: 0,
+    modified: 1,
+    deleted: 0,
+    mostChangedFiles: [{ file: "src/database.js", changes: 5 }],
+  };
+
+  const withDotSlash = findHighImpactFiles(gitAnalysis, { "./src/database.js": 7 }, 1);
+  assert.strictEqual(withDotSlash[0].currentDependents, 7, "should match despite './' prefix");
+
+  const withBackslash = findHighImpactFiles(gitAnalysis, { "src\\database.js": 9 }, 1);
+  assert.strictEqual(withBackslash[0].currentDependents, 9, "should match despite backslash separators");
+
+  pass("dependents lookup matches regardless of path format (./ prefix, backslashes)");
+}
 
 try {
   setupFixtureGitRepo();
@@ -379,6 +328,7 @@ try {
   testSpecialCharacterFilenames();
   testMultipleRenamesInSameCommit();
   testDeletedThenRecreatedFile();
+  testDependentsLookupIgnoresPathFormat();
 
   console.log(`\nALL ${passCount} TESTS PASSED`);
 } catch (err) {

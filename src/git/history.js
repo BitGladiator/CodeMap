@@ -1,22 +1,8 @@
-/**
- * src/git/history.js
- * Owner: Sneha
- *
- * Analyzes recent Git activity in a repository using only the `git` CLI
- * via child_process. No third-party git libraries (per project rules).
- *
- * Requires: the target folder must be a git repo (has a .git dir) and
- * the `git` binary must be on PATH.
- */
-
 const { execSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-// ---------- Helpers ----------
-
 function isGitRepo(repoPath) {
-  // defensive: don't crash on null/undefined/non-string input
   if (!repoPath || typeof repoPath !== "string") return false;
   try {
     return fs.existsSync(path.join(repoPath, ".git"));
@@ -33,19 +19,34 @@ function runGit(repoPath, args) {
       stdio: ["ignore", "pipe", "ignore"],
     });
   } catch (err) {
-    // repo might have zero commits yet, or git not installed, etc.
     return "";
   }
 }
 
-/**
- * Parses one line of `git log --name-status` output.
- * Normal lines look like:      "M\tsrc/server.js"
- * Rename lines look like:      "R100\told/path.js\tnew/path.js"
- * Copy lines look like:        "C100\tsrc/a.js\tsrc/b.js"
- * For renames/copies we only care about the NEW path (last column) —
- * not "old\tnew" joined together.
- */
+function decodeGitFilename(raw) {
+  if (typeof raw !== "string") return raw;
+  let file = raw.trim();
+
+  if (file.startsWith('"') && file.endsWith('"')) {
+    file = file.slice(1, -1);
+    const bytes = [];
+    for (let i = 0; i < file.length; i++) {
+      if (file[i] === "\\" && /[0-7]{3}/.test(file.slice(i + 1, i + 4))) {
+        bytes.push(parseInt(file.slice(i + 1, i + 4), 8));
+        i += 3;
+      } else {
+        bytes.push(file.charCodeAt(i));
+      }
+    }
+    try {
+      file = Buffer.from(bytes).toString("utf-8");
+    } catch {
+    }
+  }
+
+  return file;
+}
+
 function parseNameStatusLine(line) {
   const parts = line.split("\t");
   if (parts.length < 2) return null;
@@ -54,17 +55,14 @@ function parseNameStatusLine(line) {
   let file;
 
   if (status[0] === "R" || status[0] === "C") {
-    // rename/copy: last column is the new path
     file = parts[parts.length - 1];
   } else {
     file = parts[1];
   }
 
   if (!file) return null;
-  return { status: status[0], file: file.trim() };
+  return { status: status[0], file: decodeGitFilename(file) };
 }
-
-// ---------- Core: analyze last N commits ----------
 
 function analyzeChanges(repoPath, commitLimit = 10) {
   const empty = {
@@ -80,7 +78,6 @@ function analyzeChanges(repoPath, commitLimit = 10) {
     return empty;
   }
 
-  // --name-status gives us A/M/D/R/C + filename per changed file, per commit
   const raw = runGit(
     repoPath,
     `log -n ${commitLimit} --name-status --pretty=format:"__COMMIT__"`
@@ -123,15 +120,13 @@ function analyzeChanges(repoPath, commitLimit = 10) {
         deleted++;
         break;
       default:
-        // R (rename), C (copy) etc. — count as modified for simplicity
         modified++;
     }
   }
 
   const mostChangedFiles = Array.from(changeCounts.entries())
     .map(([file, changes]) => ({ file, changes }))
-    .sort((a, b) => b.changes - a.changes)
-    .slice(0, 10);
+    .sort((a, b) => b.changes - a.changes);
 
   return {
     commitCount,
@@ -143,25 +138,27 @@ function analyzeChanges(repoPath, commitLimit = 10) {
   };
 }
 
-// ---------- Combine with Graph data (the "Me" module's AnalysisResult) ----------
-// This is the "Combine Git + Graph" feature from the doc — the strongest
-// story CodeMap tells. Call this once you have dependent counts from Person 2.
-//
-// LOCKED SHAPE (tell the team — this is the final agreed format):
-// { file, recentChanges, currentDependents, note }
+function normalizePath(p) {
+  if (typeof p !== "string") return p;
+  return p.replace(/\\/g, "/").replace(/^\.\//, "");
+}
 
 function findHighImpactFiles(gitAnalysis, dependentsByFile, threshold = 5) {
-  // defensive: don't crash on null/undefined/malformed input
   if (!gitAnalysis || !Array.isArray(gitAnalysis.mostChangedFiles)) {
     return [];
   }
   const safeDependents =
     dependentsByFile && typeof dependentsByFile === "object" ? dependentsByFile : {};
 
+  const normalizedDependents = {};
+  for (const key of Object.keys(safeDependents)) {
+    normalizedDependents[normalizePath(key)] = safeDependents[key];
+  }
+
   return gitAnalysis.mostChangedFiles
     .filter((f) => f && typeof f.changes === "number" && f.changes >= threshold)
     .map((f) => {
-      const dependents = safeDependents[f.file] ?? 0;
+      const dependents = normalizedDependents[normalizePath(f.file)] ?? 0;
       return {
         file: f.file,
         recentChanges: f.changes,
@@ -174,8 +171,6 @@ function findHighImpactFiles(gitAnalysis, dependentsByFile, threshold = 5) {
     })
     .sort((a, b) => b.currentDependents - a.currentDependents);
 }
-
-// ---------- Human-readable CLI output (matches the spec format) ----------
 
 function formatReport(analysis) {
   const lines = [];
@@ -200,8 +195,6 @@ function formatReport(analysis) {
 
 module.exports = { analyzeChanges, findHighImpactFiles, formatReport };
 
-// ---------- Quick manual test ----------
-// Run with: node src/git/history.js .
 if (require.main === module) {
   const target = process.argv[2] || ".";
   console.log(formatReport(analyzeChanges(target)));
