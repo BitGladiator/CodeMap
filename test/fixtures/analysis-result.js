@@ -1,4 +1,4 @@
-const analysisResult = {
+export const analysisResult = {
   graph: {
     nodeCount: 9,
     edgeCount: 16,
@@ -84,4 +84,4 @@ const analysisResult = {
   ],
 };
 
-module.exports = analysisResult;
+export default analysisResult;

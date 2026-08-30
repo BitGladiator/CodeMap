@@ -1,14 +1,12 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const analysisResult = require("./fixtures/analysis-result");
+import { analysisResult } from "./fixtures/analysis-result.js";
+import { formatHtmlOutput } from "../src/output/html.js";
 
-const {
-  formatHtmlOutput,
-} = require("../src/output/html");
-
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const html = formatHtmlOutput(analysisResult);
-
 const outputPath = path.join(__dirname, "codemap-report.html");
 
 fs.writeFileSync(outputPath, html, "utf8");

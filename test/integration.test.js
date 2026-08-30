@@ -1,9 +1,11 @@
-const assert = require("assert");
-const { execSync } = require("child_process");
-const path = require("path");
-const fs = require("fs");
-const { analyzeChanges, findHighImpactFiles, formatReport } = require("../src/git/history");
+import assert from "assert";
+import { execSync } from "child_process";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { analyzeChanges, findHighImpactFiles, formatReport } from "../src/git/history.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(__dirname, "fixtures", "demo-project");
 const DB_FILE = path.join(FIXTURE, "src", "database.js");
 

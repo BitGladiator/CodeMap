@@ -1,11 +1,11 @@
-const path = require("path");
-const { scanDirectory } = require("./files");
-const {
+import path from "path";
+import { scanDirectory } from "./files.js";
+import {
   getDependencies,
   resolveImport
-} = require("../parser/imports");
+} from "../parser/imports.js";
 
-function analyzeProject(projectPath) {
+export function analyzeProject(projectPath) {
   const root = path.resolve(projectPath);
   const files = scanDirectory(root);
 
@@ -36,5 +36,3 @@ function analyzeProject(projectPath) {
     dependencies
   };
 }
-
-module.exports = { analyzeProject };

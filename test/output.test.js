@@ -1,19 +1,10 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
+import test from "node:test";
+import assert from "node:assert/strict";
 
-const analysisResult = require("./fixtures/analysis-result");
-
-const {
-  formatTerminalOutput,
-} = require("../src/output/terminal");
-
-const {
-  formatJsonOutput,
-} = require("../src/output/json");
-
-const {
-  formatHtmlOutput,
-} = require("../src/output/html");
+import { analysisResult } from "./fixtures/analysis-result.js";
+import { formatTerminalOutput } from "../src/output/terminal.js";
+import { formatJsonOutput } from "../src/output/json.js";
+import { formatHtmlOutput } from "../src/output/html.js";
 
 test("terminal output contains project summary", () => {
   const output = formatTerminalOutput(analysisResult);

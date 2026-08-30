@@ -1,10 +1,23 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
 
-const ignoredFolders = ["node_modules", ".git"];
+const ignoredFolders = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".nuxt",
+  "out",
+  ".cache",
+  ".turbo",
+  "vendor",
+  ".parcel-cache"
+];
 const extensions = [".js", ".jsx", ".ts", ".tsx"];
 
-function scanDirectory(folder) {
+export function scanDirectory(folder) {
   const files = [];
 
   function scan(currentFolder) {
@@ -37,5 +50,3 @@ function scanDirectory(folder) {
   scan(folder);
   return files;
 }
-
-module.exports = { scanDirectory };

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeMap - Repository Architecture & Change Analyzer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Top Navigation Header -->
+    <header class="top-nav">
+      <div class="nav-left">
+        <div class="nav-brand">
+          <svg class="nav-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+            <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.5 5.396l2.323-2.323a.75.75 0 0 1 1.06 1.06L10.56 6.457l2.324 2.323a.75.75 0 1 1-1.06 1.06L9.5 7.518l-2.323 2.323a.75.75 0 0 1-1.06-1.06l2.324-2.324-2.324-2.323a.75.75 0 0 1 1.06-1.06Z"></path>
+          </svg>
+          <span class="nav-title">CodeMap</span>
+        </div>
+        <span class="nav-divider">/</span>
+        <span class="nav-subtitle">Repository Architecture & Change Analyzer</span>
+      </div>
+      <div class="nav-right">
+        <span class="nav-tag">Node.js Native</span>
+        <span class="nav-tag">Zero Dependencies</span>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="page-container">
+      <!-- Input Panel -->
+      <section class="section-panel input-panel">
+        <div class="panel-heading">
+          <h2 class="panel-title">Analyze a GitHub Repository</h2>
+          <p class="panel-desc">Inspect module dependency structures, detect architectural bottlenecks, and correlate Git churn with high-impact files.</p>
+        </div>
+
+        <form id="analyze-form" class="url-form">
+          <div class="form-row">
+            <div class="input-wrapper">
+              <input 
+                type="url" 
+                id="repo-url" 
+                class="form-input" 
+                placeholder="https://github.com/owner/repository" 
+                required 
+                autocomplete="off" 
+                spellcheck="false" 
+              />
+            </div>
+            <button type="submit" id="analyze-btn" class="btn btn-primary">
+              <span class="btn-text">Analyze</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </div>
+        </form>
+
+        <div class="examples-row">
+          <span class="examples-label">Try example:</span>
+          <button type="button" class="text-link-btn chip-btn" data-url="local:fixture">Demo Project (local fixture)</button>
+          <span class="examples-sep">&bull;</span>
+          <button type="button" class="text-link-btn chip-btn" data-url="local:codemap">CodeMap (self analysis)</button>
+        </div>
+      </section>
+
+      <!-- Error Box -->
+      <div id="error-box" class="alert-banner alert-error" style="display: none;">
+        <span class="alert-icon">&times;</span>
+        <div id="error-message" class="alert-body"></div>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loading-section" class="loading-panel" style="display: none;">
+        <div class="spinner-icon"></div>
+        <div class="loading-text">
+          <strong id="loading-title">Analyzing repository...</strong>
+          <span id="loading-step">Cloning repository history and parsing dependency relationships...</span>
+        </div>
+      </div>
+
+      <!-- Results Container -->
+      <div id="results-section" class="results-layout" style="display: none;">
+        <!-- Repository Header & Actions -->
+        <div class="repo-header-bar">
+          <div class="repo-info">
+            <span class="repo-label">Target:</span>
+            <h1 id="result-repo-name" class="repo-name">repository</h1>
+            <a id="result-repo-link" href="#" target="_blank" rel="noopener noreferrer" class="repo-ext-link">View on GitHub &nearr;</a>
+          </div>
+          <div class="repo-toolbar-actions">
+            <button id="download-html-btn" class="btn btn-secondary btn-sm">Download HTML Report</button>
+            <button id="toggle-json-btn" class="btn btn-secondary btn-sm">View JSON</button>
+          </div>
+        </div>
+
+        <!-- Horizontal Stats Summary Strip -->
+        <div class="stats-strip">
+          <div class="stat-item">
+            <span class="stat-key">Source Files</span>
+            <span id="stat-files" class="stat-num">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-key">Dependencies</span>
+            <span id="stat-deps" class="stat-num">0</span>
+          </div>
+          <div class="stat-item" id="card-cycles">
+            <span class="stat-key">Circular Dependencies</span>
+            <span id="stat-cycles" class="stat-num">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-key">Commits Analyzed</span>
+            <span id="stat-commits" class="stat-num">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-key">Files Changed</span>
+            <span id="stat-changed" class="stat-num">0</span>
+          </div>
+        </div>
+
+        <!-- Dependency Graph Panel -->
+        <section class="section-panel graph-panel">
+          <div class="panel-heading graph-heading-row">
+            <div>
+              <h2 class="panel-title">Dependency Graph</h2>
+              <p class="panel-desc">Visual mapping of module relationships. Concentric orbits organize hotspots at the center and dependencies radially.</p>
+            </div>
+            <div class="graph-legend">
+              <span class="legend-entry"><span class="swatch swatch-node"></span> Module</span>
+              <span class="legend-entry"><span class="swatch swatch-hotspot"></span> Hotspot (&ge;3 dependents)</span>
+            </div>
+          </div>
+
+          <!-- Graph Controls -->
+          <div class="graph-controls-bar">
+            <div class="segmented-control">
+              <button type="button" class="segment-btn is-active btn-filter" data-mode="core">Core Architecture</button>
+              <button type="button" class="segment-btn btn-filter" data-mode="hotspots">Hotspots</button>
+              <button type="button" class="segment-btn btn-filter" data-mode="all">All Files</button>
+            </div>
+            <div class="graph-filter-input-wrap">
+              <input type="text" id="graph-search" class="filter-input" placeholder="Filter files in graph..." autocomplete="off" />
+              <span id="graph-count-badge" class="count-tag">0 files</span>
+            </div>
+          </div>
+
+          <!-- Inspector HUD -->
+          <div id="node-inspector-hud" class="inspector-hud" style="display: none;">
+            <div class="hud-item-file">
+              <span class="hud-tag">Selected</span>
+              <code id="hud-filename">file.js</code>
+            </div>
+            <div class="hud-item-stats">
+              <span class="hud-metric">Dependents (Incoming): <strong id="hud-in-count">0</strong></span>
+              <span class="hud-metric">Imports (Outgoing): <strong id="hud-out-count">0</strong></span>
+              <span id="hud-hotspot-badge" class="badge-danger" style="display: none;">Hotspot Hub</span>
+            </div>
+          </div>
+
+          <!-- Graph Viewport -->
+          <div id="graph-viewport" class="graph-viewport-box"></div>
+        </section>
+
+        <!-- Two Column Analysis Details -->
+        <div class="details-grid">
+          <!-- Architectural Hotspots -->
+          <section class="section-panel">
+            <div class="panel-heading">
+              <h3 class="panel-title">Architectural Hotspots</h3>
+              <p class="panel-desc">Modules with the highest incoming dependents across the codebase.</p>
+            </div>
+            <div class="table-container">
+              <table class="data-grid-table">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th class="text-right">Incoming Dependents</th>
+                    <th class="text-right">Outgoing Imports</th>
+                  </tr>
+                </thead>
+                <tbody id="hotspots-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Circular Dependencies -->
+          <section class="section-panel">
+            <div class="panel-heading">
+              <h3 class="panel-title">Circular Dependencies</h3>
+              <p class="panel-desc">Tightly coupled dependency cycles that hinder modularity.</p>
+            </div>
+            <div id="cycles-container" class="cycles-view"></div>
+          </section>
+
+          <!-- High Impact Files -->
+          <section class="section-panel">
+            <div class="panel-heading">
+              <h3 class="panel-title">High Impact Files</h3>
+              <p class="panel-desc">Files experiencing frequent Git changes combined with heavy downstream usage.</p>
+            </div>
+            <div id="high-impact-container" class="impact-table-wrap"></div>
+          </section>
+
+          <!-- Recent Git Changes -->
+          <section class="section-panel">
+            <div class="panel-heading">
+              <h3 class="panel-title">Recent Git Changes</h3>
+              <p class="panel-desc">File modification frequency extracted from recent commit history.</p>
+            </div>
+            <div class="git-stat-pills">
+              <span class="git-pill git-added">+ <span id="git-add">0</span> added</span>
+              <span class="git-pill git-modified">~ <span id="git-mod">0</span> modified</span>
+              <span class="git-pill git-deleted">- <span id="git-del">0</span> deleted</span>
+            </div>
+            <div class="table-container">
+              <table class="data-grid-table">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th class="text-right">Changes</th>
+                  </tr>
+                </thead>
+                <tbody id="changed-files-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- Raw JSON Viewer -->
+        <section id="json-viewer-section" class="section-panel" style="display: none;">
+          <div class="panel-heading">
+            <h3 class="panel-title">Raw Analysis JSON</h3>
+          </div>
+          <pre id="json-code" class="json-viewer-pre"></pre>
+        </section>
+      </div>
+    </main>
+
+    <!-- Compact Footer -->
+    <footer class="bottom-footer">
+      <span>CodeMap &bull; Repository Architecture & Change Analyzer</span>
+      <span>100% Native Node.js &bull; Zero External Dependencies</span>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -7,138 +7,166 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-//-------------------------------
-
 function getGraphNodes(files = {}) {
   const nodes = new Set();
-
   for (const [file, details] of Object.entries(files)) {
     nodes.add(file);
-
     for (const dependency of details.dependencies || []) {
       nodes.add(dependency);
     }
   }
-
   return [...nodes];
 }
 
-function calculateNodePositions(nodes, width = 900, height = 500) {
+function calculateTieredLayout(displayNodes, files = {}) {
   const positions = {};
+  const total = displayNodes.length;
+  if (total === 0) return { positions, width: 800, height: 500 };
 
-  if (nodes.length === 0) {
-    return positions;
-  }
+  const hotspots = [];
+  const intermediates = [];
+  const leaves = [];
 
-  const centerX = width / 2;
-  const centerY = height / 2;
-
-  const radius = Math.min(width, height) / 2 - 90;
-
-  nodes.forEach((node, index) => {
-    const angle = (2 * Math.PI * index) / nodes.length - Math.PI / 2;
-
-    positions[node] = {
-      x: centerX + radius * Math.cos(angle),
-      y: centerY + radius * Math.sin(angle),
-    };
-  });
-
-  return positions;
-}
-
-function generateDependencyGraph(files = {}) {
-  const nodes = getGraphNodes(files);
-
-  if (nodes.length === 0) {
-    return `<p class="empty">No dependency graph data available.</p>`;
-  }
-
-  const width = 900;
-  const height = 500;
-
-  const positions = calculateNodePositions(nodes, width, height);
-
-  const edges = [];
-
-  for (const [file, details] of Object.entries(files)) {
-    for (const dependency of details.dependencies || []) {
-      const source = positions[file];
-      const target = positions[dependency];
-
-      if (!source || !target) {
-        continue;
-      }
-
-      const nodeRadius = 34;
-
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance === 0) {
-        continue;
-      }
-
-      const unitX = dx / distance;
-      const unitY = dy / distance;
-
-      const startX = source.x + unitX * nodeRadius;
-      const startY = source.y + unitY * nodeRadius;
-
-      const endX = target.x - unitX * nodeRadius;
-      const endY = target.y - unitY * nodeRadius;
-
-      edges.push(`
-  <line
-    x1="${startX}"
-    y1="${startY}"
-    x2="${endX}"
-    y2="${endY}"
-    class="graph-edge"
-    marker-end="url(#arrow)"
-  />
-`);
+  for (const file of displayNodes) {
+    const inDeg = files[file]?.inDegree || 0;
+    const outDeg = files[file]?.outDegree || 0;
+    if (inDeg >= 3 || (inDeg >= 2 && outDeg >= 2)) {
+      hotspots.push(file);
+    } else if (inDeg >= 1 && outDeg >= 1) {
+      intermediates.push(file);
+    } else {
+      leaves.push(file);
     }
   }
 
-  const nodeElements = nodes
-    .map((file) => {
-      const position = positions[file];
+  if (total <= 12) {
+    const r = Math.max(140, total * 24);
+    const size = (r + 80) * 2;
+    const cx = size / 2;
+    const cy = size / 2;
+    displayNodes.forEach((node, idx) => {
+      const angle = (2 * Math.PI * idx) / total - Math.PI / 2;
+      const isHotspot = (files[node]?.inDegree || 0) >= 3;
+      positions[node] = {
+        x: cx + r * Math.cos(angle),
+        y: cy + r * Math.sin(angle),
+        r: isHotspot ? 24 : 18,
+        isHotspot
+      };
+    });
+    return { positions, width: size, height: size };
+  }
 
-      const fileDetails = files[file] || {};
+  const r1 = Math.max(90, hotspots.length * 28);
+  const r2 = r1 + Math.max(120, intermediates.length * 16);
+  const r3 = r2 + Math.max(120, leaves.length * 12);
+  const size = (r3 + 90) * 2;
+  const cx = size / 2;
+  const cy = size / 2;
 
-      const inDegree = fileDetails.inDegree || 0;
-      const outDegree = fileDetails.outDegree || 0;
+  const placeRing = (ringNodes, radius, offset = 0, baseRadius = 18) => {
+    ringNodes.forEach((node, idx) => {
+      const angle = (2 * Math.PI * idx) / ringNodes.length - Math.PI / 2 + offset;
+      const isHotspot = (files[node]?.inDegree || 0) >= 3;
+      positions[node] = {
+        x: cx + radius * Math.cos(angle),
+        y: cy + radius * Math.sin(angle),
+        r: isHotspot ? 24 : baseRadius,
+        isHotspot
+      };
+    });
+  };
 
-      const isHotspot = inDegree >= 3;
+  if (hotspots.length > 0) placeRing(hotspots, r1, 0, 22);
+  if (intermediates.length > 0) placeRing(intermediates, r2, Math.PI / (intermediates.length || 1), 18);
+  if (leaves.length > 0) placeRing(leaves, r3, 0, 16);
 
-      const shortName = file.split("/").pop();
+  return { positions, width: size, height: size };
+}
 
-      return `
-        <g class="graph-node">
-            <circle
-      cx="${position.x}"
-      cy="${position.y}"
-      r="34"
-      class="${isHotspot ? "node-circle hotspot-node" : "node-circle"}"
-    >
-      <title>${escapeHtml(file)}
-Incoming dependencies: ${inDegree}
-Outgoing dependencies: ${outDegree}</title>
-    </circle>
+function generateDependencyGraph(files = {}) {
+  const allNodes = getGraphNodes(files);
 
-          <text
-            x="${position.x}"
-            y="${position.y}"
-            class="node-label"
-          >
-            ${escapeHtml(shortName)}
-          </text>
-        </g>
-      `;
-    })
-    .join("");
+  if (allNodes.length === 0) {
+    return `<p class="empty">No dependency graph data available.</p>`;
+  }
+
+  const sortedNodes = [...allNodes].sort((a, b) => {
+    const da = (files[a]?.inDegree || 0) + (files[a]?.outDegree || 0);
+    const db = (files[b]?.inDegree || 0) + (files[b]?.outDegree || 0);
+    return db - da;
+  });
+
+  const MAX_DISPLAY = 32;
+  const displayNodes = sortedNodes.slice(0, MAX_DISPLAY);
+  const displaySet = new Set(displayNodes);
+
+  const { positions, width, height } = calculateTieredLayout(displayNodes, files);
+
+  const edges = [];
+  for (const file of displayNodes) {
+    const src = positions[file];
+    if (!src) continue;
+
+    for (const dep of files[file]?.dependencies || []) {
+      if (!displaySet.has(dep)) continue;
+      const tgt = positions[dep];
+      if (!tgt) continue;
+
+      const dx = tgt.x - src.x;
+      const dy = tgt.y - src.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist === 0) continue;
+
+      const ux = dx / dist;
+      const uy = dy / dist;
+
+      const x1 = src.x + ux * src.r;
+      const y1 = src.y + uy * src.r;
+      const x2 = tgt.x - ux * (tgt.r + 4);
+      const y2 = tgt.y - uy * (tgt.r + 4);
+
+      edges.push(`
+  <line
+    x1="${x1.toFixed(1)}"
+    y1="${y1.toFixed(1)}"
+    x2="${x2.toFixed(1)}"
+    y2="${y2.toFixed(1)}"
+    class="graph-edge"
+    marker-end="url(#arrow)"
+  />`);
+    }
+  }
+
+  const nodeElements = displayNodes.map((file) => {
+    const pos = positions[file];
+    const details = files[file] || {};
+    const inDeg = details.inDegree || 0;
+    const outDeg = details.outDegree || 0;
+    const shortName = file.split("/").pop();
+    const isHotspot = pos.isHotspot;
+
+    return `
+      <g class="graph-node">
+        <circle
+          cx="${pos.x.toFixed(1)}"
+          cy="${pos.y.toFixed(1)}"
+          r="${pos.r}"
+          class="${isHotspot ? "node-circle hotspot-node" : "node-circle"}"
+        >
+          <title>${escapeHtml(file)}&#10;Incoming Dependents: ${inDeg}&#10;Outgoing Dependencies: ${outDeg}</title>
+        </circle>
+        <text
+          x="${pos.x.toFixed(1)}"
+          y="${pos.y.toFixed(1)}"
+          class="node-label"
+        >${escapeHtml(shortName.length > 13 ? shortName.slice(0, 11) + ".." : shortName)}</text>
+      </g>`;
+  }).join("");
+
+  const notice = allNodes.length > MAX_DISPLAY
+    ? `<div class="graph-notice">Showing top ${MAX_DISPLAY} core files (of ${allNodes.length} total) ranked by architectural importance.</div>`
+    : "";
 
   return `
     <div class="graph-container">
@@ -152,10 +180,10 @@ Outgoing dependencies: ${outDegree}</title>
           <marker
             id="arrow"
             viewBox="0 0 10 10"
-            refX="9"
+            refX="8"
             refY="5"
-            markerWidth="6"
-            markerHeight="6"
+            markerWidth="5"
+            markerHeight="5"
             orient="auto-start-reverse"
           >
             <path
@@ -166,16 +194,14 @@ Outgoing dependencies: ${outDegree}</title>
         </defs>
 
         ${edges.join("")}
-
         ${nodeElements}
       </svg>
     </div>
+    ${notice}
   `;
 }
 
-//------------------------------------------------------
-
-function formatHtmlOutput(data) {
+export function formatHtmlOutput(data) {
   if (!data || typeof data !== "object") {
     throw new Error("Invalid analysis data.");
   }
@@ -443,18 +469,20 @@ function formatHtmlOutput(data) {
 }
 
 .graph-edge {
-  stroke: #9ca3af;
+  stroke: #cbd5e1;
   stroke-width: 1.5;
+  transition: stroke 0.2s, stroke-width 0.2s;
 }
 
 .arrow-head {
-  fill: #9ca3af;
+  fill: #94a3b8;
 }
 
 .node-circle {
   fill: #ffffff;
   stroke: #64748b;
   stroke-width: 2;
+  transition: transform 0.2s, stroke 0.2s, fill 0.2s;
 }
 
 .hotspot-node {
@@ -464,16 +492,33 @@ function formatHtmlOutput(data) {
 }
 
 .node-label {
-  fill: #1f2937;
-  font-size: 12px;
+  fill: #0f172a;
+  font-size: 11px;
   font-weight: 600;
   text-anchor: middle;
   dominant-baseline: middle;
   pointer-events: none;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 
 .graph-node {
-  cursor: default;
+  cursor: pointer;
+}
+
+.graph-node:hover .node-circle {
+  stroke: #4f46e5;
+  stroke-width: 3.5;
+  filter: drop-shadow(0 0 6px rgba(79, 70, 229, 0.4));
+}
+
+.graph-notice {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
 }
 
 .graph-legend {
@@ -649,7 +694,3 @@ function formatHtmlOutput(data) {
 </body>
 </html>`;
 }
-
-module.exports = {
-  formatHtmlOutput,
-};

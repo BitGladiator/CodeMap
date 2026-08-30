@@ -2,7 +2,16 @@
   "name": "codemap",
   "version": "1.0.0",
   "type": "module",
+  "bin": {
+    "codemap": "./src/cli.js"
+  },
   "scripts": {
-    "test": "node --test test/graph/"
+    "start": "node src/server.js",
+    "cli": "node src/cli.js",
+    "report": "node src/cli.js",
+    "report:terminal": "node src/cli.js . --format terminal",
+    "report:html": "node src/cli.js . --format html",
+    "report:json": "node src/cli.js . --format json",
+    "test": "node --test test/graph/ test/output.test.js test/integration.test.js test/server.test.js"
   }
 }

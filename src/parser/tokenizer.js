@@ -1,4 +1,4 @@
-function getImports(code) {
+export function getImports(code) {
   const imports = [];
 
   const importPattern =
@@ -19,5 +19,3 @@ function getImports(code) {
 
   return [...new Set(imports)];
 }
-
-module.exports = { getImports };

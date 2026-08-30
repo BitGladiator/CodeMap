@@ -1,10 +1,10 @@
-const fs = require("fs");
-const path = require("path");
-const { getImports } = require("./tokenizer");
+import fs from "fs";
+import path from "path";
+import { getImports } from "./tokenizer.js";
 
 const extensions = [".js", ".jsx", ".ts", ".tsx"];
 
-function resolveImport(filePath, importPath) {
+export function resolveImport(filePath, importPath) {
   if (!importPath.startsWith(".")) {
     return null;
   }
@@ -13,6 +13,13 @@ function resolveImport(filePath, importPath) {
     path.dirname(filePath),
     importPath
   );
+
+  try {
+    if (fs.existsSync(basePath) && fs.statSync(basePath).isFile()) {
+      return basePath;
+    }
+  } catch {
+  }
 
   for (const ext of extensions) {
     const file = basePath + ext;
@@ -33,12 +40,7 @@ function resolveImport(filePath, importPath) {
   return null;
 }
 
-function getDependencies(filePath) {
+export function getDependencies(filePath) {
   const code = fs.readFileSync(filePath, "utf8");
   return getImports(code);
 }
-
-module.exports = {
-  resolveImport,
-  getDependencies
-};

@@ -1,8 +1,9 @@
-const { execSync } = require("child_process");
-const path = require("path");
-const fs = require("fs");
+import { execSync } from "child_process";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
-function isGitRepo(repoPath) {
+export function isGitRepo(repoPath) {
   if (!repoPath || typeof repoPath !== "string") return false;
   try {
     return fs.existsSync(path.join(repoPath, ".git"));
@@ -11,7 +12,7 @@ function isGitRepo(repoPath) {
   }
 }
 
-function runGit(repoPath, args) {
+export function runGit(repoPath, args) {
   try {
     return execSync(`git ${args}`, {
       cwd: repoPath,
@@ -23,7 +24,7 @@ function runGit(repoPath, args) {
   }
 }
 
-function decodeGitFilename(raw) {
+export function decodeGitFilename(raw) {
   if (typeof raw !== "string") return raw;
   let file = raw.trim();
 
@@ -47,7 +48,7 @@ function decodeGitFilename(raw) {
   return file;
 }
 
-function parseNameStatusLine(line) {
+export function parseNameStatusLine(line) {
   const parts = line.split("\t");
   if (parts.length < 2) return null;
 
@@ -64,7 +65,7 @@ function parseNameStatusLine(line) {
   return { status: status[0], file: decodeGitFilename(file) };
 }
 
-function analyzeChanges(repoPath, commitLimit = 10) {
+export function analyzeChanges(repoPath, commitLimit = 10) {
   const empty = {
     commitCount: 0,
     filesChanged: 0,
@@ -138,12 +139,12 @@ function analyzeChanges(repoPath, commitLimit = 10) {
   };
 }
 
-function normalizePath(p) {
+export function normalizePath(p) {
   if (typeof p !== "string") return p;
   return p.replace(/\\/g, "/").replace(/^\.\//, "");
 }
 
-function findHighImpactFiles(gitAnalysis, dependentsByFile, threshold = 5) {
+export function findHighImpactFiles(gitAnalysis, dependentsByFile, threshold = 5) {
   if (!gitAnalysis || !Array.isArray(gitAnalysis.mostChangedFiles)) {
     return [];
   }
@@ -172,7 +173,7 @@ function findHighImpactFiles(gitAnalysis, dependentsByFile, threshold = 5) {
     .sort((a, b) => b.currentDependents - a.currentDependents);
 }
 
-function formatReport(analysis) {
+export function formatReport(analysis) {
   const lines = [];
   lines.push("RECENT CHANGES");
   lines.push("");
@@ -193,9 +194,7 @@ function formatReport(analysis) {
   return lines.join("\n");
 }
 
-module.exports = { analyzeChanges, findHighImpactFiles, formatReport };
-
-if (require.main === module) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const target = process.argv[2] || ".";
   console.log(formatReport(analyzeChanges(target)));
 }
