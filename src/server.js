@@ -1,4 +1,5 @@
 import http from "http";
+import https from "https";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -82,6 +83,21 @@ function serveStaticFile(req, res) {
 
   res.writeHead(200, { "Content-Type": contentType });
   fs.createReadStream(filePath).pipe(res);
+}
+
+function setupKeepAlive() {
+  const targetUrl = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL || process.env.APP_URL;
+  if (!targetUrl) return;
+
+  const healthUrl = targetUrl.replace(/\/+$/, "") + "/health";
+  const INTERVAL_MS = 10 * 60 * 1000;
+
+  setInterval(() => {
+    try {
+      const client = healthUrl.startsWith("https") ? https : http;
+      client.get(healthUrl, () => {}).on("error", () => {});
+    } catch {}
+  }, INTERVAL_MS).unref();
 }
 
 export function createServer() {
@@ -198,5 +214,6 @@ if (
     console.log(`  Listening on: http://${HOST}:${PORT}`);
     console.log(`  Zero third-party dependencies active`);
     console.log(`======================================================\n`);
+    setupKeepAlive();
   });
 }
